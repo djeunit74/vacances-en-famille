@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
@@ -18,9 +18,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Corriger les boutons de validation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          s=s.replace('onclick="winChallenge()">Réussi !</button> <button class="alt" onclick="newChallenge()">Autre</button>', 'onclick="winChallenge()">✅ Valider le défi</button> <button class="alt" onclick="newChallenge()">Défi suivant</button><p id="challengeMsg"></p>')
+          s=s.replace('<div class="grid"><button onclick="poolSuccess()">Réussi !</button><button class="alt" onclick="newPool()">Autre jeu</button></div>', '<div class="grid"><button id="poolWin" onclick="poolSuccess()">✅ Valider le défi</button><button class="alt" onclick="newPool()">Défi suivant</button></div><p id="poolMsg"></p>')
+          s=s.replace("function newChallenge(){current=challenges[Math.floor(Math.random()*challenges.length)];challengeText.textContent=current[0];challengePts.textContent='+'+current[1]+' point'+(current[1]>1?'s':'');challengeWin.disabled=false;render()};function winChallenge(){state.players[selected].score+=current[1];challengeWin.disabled=true;save()}", "function newChallenge(){current=challenges[Math.floor(Math.random()*challenges.length)];document.getElementById('challengeText').textContent=current[0];document.getElementById('challengePts').textContent=state.players[selected].name+' · +'+current[1]+' point'+(current[1]>1?'s':'');let b=document.getElementById('challengeWin');b.disabled=false;b.textContent='✅ Valider le défi';let m=document.getElementById('challengeMsg');if(m)m.textContent='';render()};function winChallenge(){let p=state.players[selected];p.score+=current[1];localStorage.setItem('plage4',JSON.stringify(state));let b=document.getElementById('challengeWin');b.disabled=true;b.textContent='✓ Défi validé';let m=document.getElementById('challengeMsg');if(m)m.textContent='Bravo '+p.name+' ! +'+current[1]+' point'+(current[1]>1?'s':'');render()}")
+          s=s.replace("function poolSuccess(){let x=window.currentPool||poolTasks[0];state.players[selected].score+=x[1];save();poolText.textContent='🏆 Bravo '+state.players[selected].name+' !';}", "function poolSuccess(){let x=window.currentPool||poolTasks[0],p=state.players[selected];p.score+=x[1];localStorage.setItem('plage4',JSON.stringify(state));let b=document.getElementById('poolWin');if(b){b.disabled=true;b.textContent='✓ Défi validé'}let m=document.getElementById('poolMsg');if(m)m.textContent='Bravo '+p.name+' ! +'+x[1]+' point'+(x[1]>1?'s':'');render();}")
+          p.write_text(s)
+          PY
+      - name: Enregistrer la correction si nécessaire
+        run: |
+          if ! git diff --quiet -- index.html; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "Réparer la validation des défis"
+            git push
+          fi
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
